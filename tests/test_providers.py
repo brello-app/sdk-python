@@ -22,7 +22,7 @@ if HAS_PROVIDERS or HAS_GOOGLE:
 
 if HAS_GOOGLE:
     from google import genai
-    from google.auth.credentials import AnonymousCredentials
+    from google.oauth2.credentials import Credentials
 
 
 @unittest.skipUnless(HAS_GOOGLE, "Install the SDK test extra to test the official Google client.")
@@ -39,6 +39,7 @@ class GoogleIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         def provider(request):
             if request.url.path.endswith(":predict"):
+                self.assertEqual(request.headers.get("Authorization"), "Bearer vertex-test-token")
                 return httpx.Response(200, json={"predictions": [{"embeddings": {
                     "values": [0.25], "statistics": {"token_count": 4, "truncated": False},
                 }}]})
@@ -65,7 +66,8 @@ class GoogleIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
             vertex_options = genai.types.HttpOptions(httpx_client=httpx.Client(transport=transport))
             with sdk.wrap(genai.Client(vertexai=True, project="fixture", location="us-central1",
-                                       credentials=AnonymousCredentials(), http_options=vertex_options),
+                                       credentials=Credentials(token="vertex-test-token"),
+                                       http_options=vertex_options),
                           provider="google_vertex_ai") as vertex:
                 result = vertex.models.embed_content(model="google/text-embedding-005", contents="private")
                 self.assertEqual(result.embeddings[0].values, [0.25])
