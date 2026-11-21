@@ -1,0 +1,39 @@
+name: Python SDK CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.14']
+        provider-sdk: [minimum, latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install minimum supported provider clients
+        if: matrix.provider-sdk == 'minimum'
+        run: python -m pip install '.[test]' 'httpx==0.28.1' 'openai==2.0.0' 'anthropic==0.60.0' 'google-genai==2.0.0' build twine
+      - name: Install latest supported provider clients
+        if: matrix.provider-sdk == 'latest'
+        run: python -m pip install '.[test]' build twine
+      - run: python -m unittest discover -s tests -v
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - name: Verify the wheel in an isolated environment
+        run: |
+          python -m venv "${RUNNER_TEMP}/brello-wheel"
+          "${RUNNER_TEMP}/brello-wheel/bin/python" -m pip install --no-deps dist/*.whl
+          "${RUNNER_TEMP}/brello-wheel/bin/python" -c "from brello import Brello; assert Brello(enabled=False).api_key_status == 'missing'"
